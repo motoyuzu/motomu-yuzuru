@@ -5,14 +5,14 @@ import { supabase } from '@/lib/supabase';
 
 type Post = {
   id: string;
-  type: 'motomu' | 'yuzuru';
+  type: string;
   item_name: string;
-  description: string;
+  description?: string;
   created_at: string;
 };
 
 export default function Home() {
-  const [tab, setTab] = useState<'motomu' | 'yuzuru'>('motomu');
+  const [tab, setTab] = useState<'take' | 'give'>('take'); // 'take'=モトム, 'give'=ユズル
   const [posts, setPosts] = useState<Post[]>([]);
   const [itemName, setItemName] = useState('');
   const [description, setDescription] = useState('');
@@ -27,6 +27,8 @@ export default function Home() {
 
     if (!error && data) {
       setPosts(data as Post[]);
+    } else if (error) {
+      console.error('Fetch error:', error);
     }
   };
 
@@ -40,21 +42,28 @@ export default function Home() {
     if (!itemName.trim()) return;
 
     setLoading(true);
+
+    // 端末識別用ダミーUUID
+    const dummyUserUuid = '00000000-0000-0000-0000-000000000000';
+
     const { error } = await supabase.from('posts').insert([
       {
-        type: tab,
+        user_uuid: dummyUserUuid,
+        type: tab, // 'take' または 'give'
         item_name: itemName,
         description: description,
       },
     ]);
 
     setLoading(false);
+
     if (!error) {
       setItemName('');
       setDescription('');
       fetchPosts();
     } else {
-      alert('投稿に失敗しました。もう一度お試しください。');
+      console.error('Insert error:', error);
+      alert(`投稿エラー: ${error.message || '投稿に失敗しました'}`);
     }
   };
 
@@ -70,14 +79,14 @@ export default function Home() {
       {/* タブ切り替え */}
       <div style={styles.tabContainer}>
         <button
-          style={tab === 'motomu' ? { ...styles.tab, ...styles.activeTab } : styles.tab}
-          onClick={() => setTab('motomu')}
+          style={tab === 'take' ? { ...styles.tab, ...styles.activeTab } : styles.tab}
+          onClick={() => setTab('take')}
         >
           モトム（探す）
         </button>
         <button
-          style={tab === 'yuzuru' ? { ...styles.tab, ...styles.activeTab } : styles.tab}
-          onClick={() => setTab('yuzuru')}
+          style={tab === 'give' ? { ...styles.tab, ...styles.activeTab } : styles.tab}
+          onClick={() => setTab('give')}
         >
           ユズル（譲る）
         </button>
@@ -86,11 +95,11 @@ export default function Home() {
       {/* 投稿フォーム */}
       <form onSubmit={handleSubmit} style={styles.form}>
         <h2 style={styles.formTitle}>
-          {tab === 'motomu' ? '欲しいグッズを登録' : '譲れるグッズを登録'}
+          {tab === 'take' ? '欲しいグッズを登録' : '譲れるグッズを登録'}
         </h2>
         <input
           type="text"
-          placeholder={tab === 'motomu' ? '例：缶バッジ A賞 / トレカ' : '例：アクリルスタンド B賞'}
+          placeholder={tab === 'take' ? '例：缶バッジ A賞 / トレカ' : '例：アクリルスタンド B賞'}
           value={itemName}
           onChange={(e) => setItemName(e.target.value)}
           style={styles.input}
@@ -98,7 +107,7 @@ export default function Home() {
         />
         <textarea
           placeholder={
-            tab === 'motomu'
+            tab === 'take'
               ? '例：〇〇の衣装のものを探しています！会場正面付近にいます。'
               : '例：定価でお譲り可能です。ガチャ前にいます。'
           }
@@ -108,14 +117,14 @@ export default function Home() {
           rows={3}
         />
         <button type="submit" disabled={loading} style={styles.submitBtn}>
-          {loading ? '送信中...' : tab === 'motomu' ? 'モトムに登録' : 'ユズルに登録'}
+          {loading ? '送信中...' : tab === 'take' ? 'モトムに登録' : 'ユズルに登録'}
         </button>
       </form>
 
       {/* 一覧表示 */}
       <section style={styles.listSection}>
         <h2 style={styles.sectionTitle}>
-          {tab === 'motomu' ? '求めている人一覧' : '譲れる人一覧'}
+          {tab === 'take' ? '求めている人一覧' : '譲れる人一覧'}
         </h2>
         {filteredPosts.length === 0 ? (
           <p style={styles.emptyText}>現在、登録されている投稿はありません。</p>
@@ -125,7 +134,7 @@ export default function Home() {
               <li key={post.id} style={styles.card}>
                 <div style={styles.cardHeader}>
                   <span style={styles.badge}>
-                    {post.type === 'motomu' ? '求' : '譲'}
+                    {post.type === 'take' ? '求' : '譲'}
                   </span>
                   <h3 style={styles.itemName}>{post.item_name}</h3>
                 </div>
