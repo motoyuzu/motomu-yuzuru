@@ -1,178 +1,299 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+
+type Post = {
+  id: string;
+  type: 'motomu' | 'yuzuru';
+  item_name: string;
+  description: string;
+  created_at: string;
+};
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'motomu' | 'yuzuru'>('motomu');
-  const [checkedIn, setCheckedIn] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [tab, setTab] = useState<'motomu' | 'yuzuru'>('motomu');
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [itemName, setItemName] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // デモ用データ
-  const motomuItems = [
-    {
-      id: 1,
-      title: '缶バッジ A賞',
-      condition: 'トレード希望（求：B賞）',
-      user: '20代・女性',
-      type: '缶バッジ',
-    },
-    {
-      id: 2,
-      title: 'アクリルスタンド B',
-      condition: '定価買い取り希望',
-      user: '30代・男性',
-      type: 'アクスタ',
-    },
-  ];
+  // 投稿データの取得
+  const fetchPosts = async () => {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  const myYuzuruItem = {
-    title: '缶バッジ B賞',
-    status: '募集中',
-    time: '15分前',
-    condition: 'トレード / 定価譲渡可',
+    if (!error && data) {
+      setPosts(data as Post[]);
+    }
   };
 
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  // 新規投稿の保存
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemName.trim()) return;
+
+    setLoading(true);
+    const { error } = await supabase.from('posts').insert([
+      {
+        type: tab,
+        item_name: itemName,
+        description: description,
+      },
+    ]);
+
+    setLoading(false);
+    if (!error) {
+      setItemName('');
+      setDescription('');
+      fetchPosts();
+    } else {
+      alert('投稿に失敗しました。もう一度お試しください。');
+    }
+  };
+
+  const filteredPosts = posts.filter((p) => p.type === tab);
+
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-gray-50 text-gray-900 pb-10">
-      {/* ヘッダー・チェックイン */}
-      <header className="bg-white p-4 border-b sticky top-0 z-10 shadow-sm">
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-xl font-bold tracking-tight text-blue-600">モトムユズル</h1>
-          <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">PWA Ver.</span>
-        </div>
-        
-        <div className="bg-blue-50 p-3 rounded-lg flex items-center justify-between border border-blue-100">
-          <div>
-            <p className="text-xs text-blue-600 font-semibold">現在のイベント</p>
-            <p className="text-sm font-bold">東京ドーム - ドームツアー2026</p>
-          </div>
-          <button
-            onClick={() => setCheckedIn(!checkedIn)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-              checkedIn
-                ? 'bg-green-600 text-white'
-                : 'bg-blue-600 text-white shadow hover:bg-blue-700'
-            }`}
-          >
-            {checkedIn ? '📍 チェックイン済' : 'GPSチェックイン'}
-          </button>
-        </div>
+    <main style={styles.container}>
+      <header style={styles.header}>
+        <h1 style={styles.title}>モトムユズル</h1>
+        <p style={styles.subtitle}>現地限定 グッズ交換・譲渡掲示板</p>
       </header>
 
-      {/* メイン切り替えタブ（モトム / ユズル） */}
-      <div className="flex border-b bg-white">
+      {/* タブ切り替え */}
+      <div style={styles.tabContainer}>
         <button
-          onClick={() => setActiveTab('motomu')}
-          className={`flex-1 py-3 text-center font-bold text-lg border-b-2 transition-all ${
-            activeTab === 'motomu'
-              ? 'border-blue-600 text-blue-600 bg-blue-50/50'
-              : 'border-transparent text-gray-400'
-          }`}
+          style={tab === 'motomu' ? { ...styles.tab, ...styles.activeTab } : styles.tab}
+          onClick={() => setTab('motomu')}
         >
-          モトム
+          モトム（探す）
         </button>
         <button
-          onClick={() => setActiveTab('yuzuru')}
-          className={`flex-1 py-3 text-center font-bold text-lg border-b-2 transition-all ${
-            activeTab === 'yuzuru'
-              ? 'border-blue-600 text-blue-600 bg-blue-50/50'
-              : 'border-transparent text-gray-400'
-          }`}
+          style={tab === 'yuzuru' ? { ...styles.tab, ...styles.activeTab } : styles.tab}
+          onClick={() => setTab('yuzuru')}
         >
-          ユズル
+          ユズル（譲る）
         </button>
       </div>
 
-      {/* コンテンツ表示領域 */}
-      <main className="p-4">
-        {activeTab === 'motomu' ? (
-          /* 【モトム】一覧・検索・閲覧画面 */
-          <div className="space-y-4">
-            {/* 検索バー */}
-            <div>
-              <input
-                type="text"
-                placeholder="例：東京ドーム / 缶バッジ / メンバー名"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full p-3 border rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-            </div>
+      {/* 投稿フォーム */}
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <h2 style={styles.formTitle}>
+          {tab === 'motomu' ? '欲しいグッズを登録' : '譲れるグッズを登録'}
+        </h2>
+        <input
+          type="text"
+          placeholder={tab === 'motomu' ? '例：缶バッジ A賞 / トレカ' : '例：アクリルスタンド B賞'}
+          value={itemName}
+          onChange={(e) => setItemName(e.target.value)}
+          style={styles.input}
+          required
+        />
+        <textarea
+          placeholder={
+            tab === 'motomu'
+              ? '例：〇〇の衣装のものを探しています！会場正面付近にいます。'
+              : '例：定価でお譲り可能です。ガチャ前にいます。'
+          }
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={styles.textarea}
+          rows={3}
+        />
+        <button type="submit" disabled={loading} style={styles.submitBtn}>
+          {loading ? '送信中...' : tab === 'motomu' ? 'モトムに登録' : 'ユズルに登録'}
+        </button>
+      </form>
 
-            {/* カテゴリーフィルター */}
-            <div className="flex gap-2 overflow-x-auto pb-1 text-xs">
-              <span className="bg-blue-600 text-white px-3 py-1.5 rounded-full font-medium whitespace-nowrap">すべて</span>
-              <span className="bg-white border border-gray-200 px-3 py-1.5 rounded-full whitespace-nowrap">缶バッジ</span>
-              <span className="bg-white border border-gray-200 px-3 py-1.5 rounded-full whitespace-nowrap">アクスタ</span>
-              <span className="bg-white border border-gray-200 px-3 py-1.5 rounded-full whitespace-nowrap">トレカ</span>
-            </div>
-
-            {/* 一覧リスト */}
-            <div className="space-y-3">
-              <p className="text-xs font-bold text-gray-500">現在募集中のアイテム</p>
-              {motomuItems.map((item) => (
-                <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex gap-3">
-                  <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400 font-bold shrink-0">
-                    [写真]
-                  </div>
-                  <div className="flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-sm">{item.title}</h3>
-                        <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{item.user}</span>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-1 font-medium">{item.condition}</p>
-                    </div>
-                    <button className="w-full bg-blue-600 text-white text-xs font-bold py-1.5 rounded-lg mt-2 shadow-sm">
-                      交換・交渉を申し込む
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* 一覧表示 */}
+      <section style={styles.listSection}>
+        <h2 style={styles.sectionTitle}>
+          {tab === 'motomu' ? '求めている人一覧' : '譲れる人一覧'}
+        </h2>
+        {filteredPosts.length === 0 ? (
+          <p style={styles.emptyText}>現在、登録されている投稿はありません。</p>
         ) : (
-          /* 【ユズル】自分が出すグッズ・管理画面 */
-          <div className="space-y-4">
-            <button className="w-full bg-green-600 text-white font-bold p-3 rounded-xl shadow-sm text-sm flex items-center justify-center gap-1">
-              <span>＋</span> 新しく譲るグッズを登録する
-            </button>
-
-            {/* 出品中アイテム */}
-            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-gray-500">現在出品中のグッズ</span>
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
-                  🔵 {myYuzuruItem.status}
+          <ul style={styles.list}>
+            {filteredPosts.map((post) => (
+              <li key={post.id} style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <span style={styles.badge}>
+                    {post.type === 'motomu' ? '求' : '譲'}
+                  </span>
+                  <h3 style={styles.itemName}>{post.item_name}</h3>
+                </div>
+                {post.description && <p style={styles.cardDesc}>{post.description}</p>}
+                <span style={styles.time}>
+                  {new Date(post.created_at).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
-              </div>
-              <div className="flex gap-3 mb-3">
-                <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400 font-bold shrink-0">
-                  [写真]
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm">{myYuzuruItem.title}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{myYuzuruItem.condition}</p>
-                  <p className="text-[10px] text-gray-400 mt-2">投稿: {myYuzuruItem.time}</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button className="flex-1 border text-xs font-bold py-2 rounded-lg text-gray-600">編集</button>
-                <button className="flex-1 border border-red-200 text-xs font-bold py-2 rounded-lg text-red-600">募集終了</button>
-              </div>
-            </div>
-
-            {/* 取引履歴 */}
-            <div className="mt-6">
-              <p className="text-xs font-bold text-gray-500 mb-2">過去の取引履歴</p>
-              <div className="bg-white p-3 rounded-xl border border-gray-100 text-xs flex justify-between items-center">
-                <span className="font-medium text-gray-700">アクリルスタンド A賞</span>
-                <span className="text-green-600 font-bold">🟢 取引完了</span>
-              </div>
-            </div>
-          </div>
+              </li>
+            ))}
+          </ul>
         )}
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
+
+// モバイル最適化インラインスタイル
+const styles: { [key: string]: React.CSSProperties } = {
+  container: {
+    maxWidth: '480px',
+    margin: '0 auto',
+    padding: '16px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    backgroundColor: '#f8f9fa',
+    minHeight: '100vh',
+  },
+  header: {
+    textAlign: 'center',
+    marginBottom: '16px',
+  },
+  title: {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#111827',
+    margin: 0,
+  },
+  subtitle: {
+    fontSize: '12px',
+    color: '#6b7280',
+    marginTop: '4px',
+  },
+  tabContainer: {
+    display: 'flex',
+    borderRadius: '12px',
+    backgroundColor: '#e5e7eb',
+    padding: '4px',
+    marginBottom: '16px',
+  },
+  tab: {
+    flex: 1,
+    padding: '10px 0',
+    border: 'none',
+    borderRadius: '8px',
+    backgroundColor: 'transparent',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#4b5563',
+    cursor: 'pointer',
+  },
+  activeTab: {
+    backgroundColor: '#ffffff',
+    color: '#111827',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  form: {
+    backgroundColor: '#ffffff',
+    padding: '16px',
+    borderRadius: '12px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    marginBottom: '20px',
+  },
+  formTitle: {
+    fontSize: '15px',
+    fontWeight: 'bold',
+    marginBottom: '12px',
+    color: '#374151',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: '1px solid #d1d5db',
+    fontSize: '14px',
+    marginBottom: '10px',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: '1px solid #d1d5db',
+    fontSize: '14px',
+    marginBottom: '12px',
+    boxSizing: 'border-box',
+    resize: 'none',
+  },
+  submitBtn: {
+    width: '100%',
+    padding: '12px',
+    borderRadius: '8px',
+    border: 'none',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  listSection: {
+    marginTop: '8px',
+  },
+  sectionTitle: {
+    fontSize: '16px',
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: '12px',
+  },
+  emptyText: {
+    fontSize: '13px',
+    color: '#9ca3af',
+    textAlign: 'center',
+    padding: '24px 0',
+  },
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    padding: '12px 16px',
+    borderRadius: '10px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+  },
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  badge: {
+    backgroundColor: '#eff6ff',
+    color: '#2563eb',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    padding: '2px 8px',
+    borderRadius: '6px',
+  },
+  itemName: {
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#1f2937',
+    margin: 0,
+  },
+  cardDesc: {
+    fontSize: '13px',
+    color: '#4b5563',
+    marginTop: '6px',
+    marginBottom: '4px',
+  },
+  time: {
+    fontSize: '11px',
+    color: '#9ca3af',
+    display: 'block',
+    textAlign: 'right',
+  },
+};
